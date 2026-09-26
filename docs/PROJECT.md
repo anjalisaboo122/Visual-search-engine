@@ -6,7 +6,7 @@ A backend system where users upload images and find visually similar ones.
 - worker/: background worker that computes CLIP embeddings (later)
 - shard/: vector index shard services using FAISS (later)
 - Postgres: users + image metadata
-- MinIO (S3-compatible): image file storage
+- RustFS (S3-compatible): image file storage
 - Redis: job queue (Redis Streams) + cache
 
 ## Rules for the AI agent
