@@ -35,6 +35,24 @@ class Settings(BaseSettings):
     minio_root_user: str | None = None
     minio_root_password: str | None = None
 
+    # Images
+    storage_bucket: str = "images"
+    max_upload_mb: int = 10
+
+    # Job queue (Redis Streams)
+    queue_stream: str = "image-jobs"
+    queue_group: str = "embedders"
+    queue_dead_letter_stream: str = "image-jobs-dead"
+    queue_max_attempts: int = 3
+    # A job a worker took but hasn't finished after this long is assumed
+    # stuck (worker crashed) and gets handed to another worker.
+    queue_claim_idle_ms: int = 60_000
+
+    # Worker
+    embedder: str = "clip"  # "clip" (real) or "fake" (tests, no model download)
+    clip_model: str = "ViT-B-32"
+    clip_pretrained: str = "laion2b_s34b_b79k"
+
     # Auth (JWT) Configuration
     # No default on purpose: if JWT_SECRET is missing, the API refuses to start
     # instead of silently signing tokens with a guessable key.

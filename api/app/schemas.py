@@ -29,6 +29,24 @@ class TokenResponse(BaseModel):
     expires_in: int  # seconds until the token expires
 
 
+class ImageOut(BaseModel):
+    """What we show about an image. The raw embedding bytes are left out."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    width: int
+    height: int
+    status: str
+    attempts: int
+    error: str | None
+    created_at: datetime
+    indexed_at: datetime | None
+
+
 class UserOut(BaseModel):
     """What we show about a user. Note: no password_hash field."""
 

@@ -1,3 +1,19 @@
+# Settings shared by the api and worker containers (a YAML "anchor",
+# reused below with <<: *app-env so it's written only once).
+x-app-env: &app-env
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432            # port INSIDE the Docker network, always 5432
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  STORAGE_HOST: storage
+  STORAGE_PORT: 9000
+  STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+  STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,8 +33,12 @@ services:
 
   redis:
     image: redis:7-alpine
+    # appendonly: write every change to disk, so queued jobs survive a restart.
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -53,18 +73,27 @@ services:
     ports:
       - "8000:8000"
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      REDIS_HOST: redis
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      STORAGE_HOST: storage
-      STORAGE_PORT: 9000
-      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
-      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      <<: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      <<: *app-env
+      EMBEDDER: ${EMBEDDER:-clip}   # set EMBEDDER=fake in .env to skip the model
+    volumes:
+      # CLIP weights (~600 MB) are downloaded once and kept here.
+      - model-cache:/models
+    # If the worker crashes, Docker starts it again.
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,5 +105,5 @@ services:
 volumes:
   postgres_data:
   storage-data:
-
-
+  redis-data:
+  model-cache:
