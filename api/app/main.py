@@ -1,15 +1,17 @@
 import asyncio
-from fastapi import FastAPI, Response, status
-from minio import Minio
+
 import asyncpg
 import redis.asyncio as aioredis
+from fastapi import FastAPI, Response, status
+from minio import Minio
 
-try:
-    from api.app.config import Settings, get_settings
-except ImportError:
-    from app.config import Settings, get_settings
+from api.app.auth import router as auth_router
+from api.app.config import Settings, get_settings
 
 app = FastAPI(title="Visual Search Engine API")
+
+# Adds /auth/signup, /auth/login, /auth/me
+app.include_router(auth_router)
 
 
 async def check_postgres(settings: Settings) -> bool:
@@ -47,7 +49,7 @@ async def check_redis(settings: Settings) -> bool:
         return False
 
 
-def _check_minio_sync(settings: Settings) -> bool:
+def _check_storage_sync(settings: Settings) -> bool:
     try:
         client = Minio(
             settings.s3_endpoint,
@@ -61,21 +63,21 @@ def _check_minio_sync(settings: Settings) -> bool:
         return False
 
 
-async def check_minio(settings: Settings) -> bool:
-    return await asyncio.to_thread(_check_minio_sync, settings)
+async def check_storage(settings: Settings) -> bool:
+    return await asyncio.to_thread(_check_storage_sync, settings)
 
 
 @app.get("/health")
 async def health_check(response: Response):
     settings = get_settings()
 
-    pg_ok, redis_ok, minio_ok = await asyncio.gather(
+    pg_ok, redis_ok, storage_ok = await asyncio.gather(
         check_postgres(settings),
         check_redis(settings),
-        check_minio(settings),
+        check_storage(settings),
     )
 
-    all_healthy = pg_ok and redis_ok and minio_ok
+    all_healthy = pg_ok and redis_ok and storage_ok
     if not all_healthy:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
@@ -83,6 +85,5 @@ async def health_check(response: Response):
         "status": "ok" if all_healthy else "unhealthy",
         "postgres": "ok" if pg_ok else "unhealthy",
         "redis": "ok" if redis_ok else "unhealthy",
-        "minio": "ok" if minio_ok else "unhealthy",
-        "storage": "ok" if minio_ok else "unhealthy",
+        "storage": "ok" if storage_ok else "unhealthy",
     }
